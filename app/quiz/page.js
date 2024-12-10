@@ -9,7 +9,7 @@ const topics = [
   { id: "facts", name: "Facts" },
 ];
 
-export default function Home() {
+export default function QuizTopics() {
   const router = useRouter();
 
   const startQuiz = (topic) => {
@@ -17,14 +17,16 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6">
-      <h1 className="text-4xl font-bold mb-6">Choose a Quiz Topic</h1>
-      <div className="grid gap-4">
+    <main className="min-h-screen bg-gradient-to-br from-dark-blue to-blue-700 flex flex-col items-center justify-center text-light-green">
+      <h1 className="text-4xl font-bold mb-6 animate-pulse">
+        Choose a Quiz Topic
+      </h1>
+      <div className="grid gap-6">
         {topics.map((topic) => (
           <button
             key={topic.id}
             onClick={() => startQuiz(topic.id)}
-            className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600"
+            className="bg-light-green text-dark-blue px-6 py-3 rounded-lg hover:scale-105 transition-transform duration-200 shadow-lg"
           >
             {topic.name}
           </button>

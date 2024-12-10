@@ -1,56 +1,54 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 
 export default function QuizPage() {
-  const { topic } = useParams(); // Get the topic from the URL
+  const params = useParams();
+  const topic = params?.topic || "general-knowledge";
+
   const [questions, setQuestions] = useState([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState(0);
-  const [showScore, setShowScore] = useState(false);
   const [loading, setLoading] = useState(true);
-
-  // Map topics to Open Trivia DB category IDs
-  const topicCategoryMap = {
-    sports: 21, // Sports category
-    food: 17, // Food (Science & Nature as an example)
-    "general-knowledge": 9, // General Knowledge category
-    facts: 23, // History as an example for facts
-  };
+  const [error, setError] = useState("");
+  const [timeLeft, setTimeLeft] = useState(10);
 
   useEffect(() => {
+    setQuestions([]);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setLoading(true);
+    setError("");
+    setTimeLeft(10);
+
     const fetchQuestions = async () => {
-      setLoading(true);
       try {
-        const category = topicCategoryMap[topic];
         const response = await fetch(
-          `https://opentdb.com/api.php?amount=10&category=${category}&difficulty=easy&type=multiple`
+          `https://opentdb.com/api.php?amount=10&category=${getCategoryId(
+            topic
+          )}&type=multiple`
         );
 
-        // Validate response
         if (!response.ok) {
           throw new Error("Failed to fetch questions");
         }
 
         const data = await response.json();
 
-        // Check if results exist
         if (!data.results || data.results.length === 0) {
-          throw new Error("No questions found for this topic");
+          throw new Error("No questions found");
         }
 
-        // Format questions
-        const formattedQuestions = data.results.map((item) => ({
-          question: item.question,
-          options: [...item.incorrect_answers, item.correct_answer].sort(() => Math.random() - 0.5),
-          correctAnswer: item.correct_answer,
+        const formattedQuestions = data.results.map((q) => ({
+          question: q.question,
+          options: shuffle([...q.incorrect_answers, q.correct_answer]),
+          correctAnswer: q.correct_answer,
         }));
 
         setQuestions(formattedQuestions);
-      } catch (error) {
-        console.error("Error fetching questions:", error);
-        alert("An error occurred while fetching quiz questions. Please try again later.");
+      } catch (err) {
+        setError("Failed to load questions. Please try again later.");
       } finally {
         setLoading(false);
       }
@@ -59,69 +57,112 @@ export default function QuizPage() {
     fetchQuestions();
   }, [topic]);
 
-  const handleAnswer = (selectedOption) => {
-    if (selectedOption === questions[currentQuestionIndex]?.correctAnswer) {
-      setScore((prevScore) => prevScore + 1);
+  const getCategoryId = (topic) => {
+    const categories = {
+      sports: 21,
+      "general-knowledge": 9,
+      food: 17,
+      facts: 23,
+    };
+    return categories[topic] || 9;
+  };
+
+  const shuffle = (array) => {
+    return array.sort(() => Math.random() - 0.5);
+  };
+
+  const handleAnswer = (answer) => {
+    if (answer === questions[currentQuestionIndex].correctAnswer) {
+      setScore((prev) => prev + 1);
     }
 
-    const nextQuestion = currentQuestionIndex + 1;
-    if (nextQuestion < questions.length) {
-      setCurrentQuestionIndex(nextQuestion);
+    if (currentQuestionIndex + 1 < questions.length) {
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setTimeLeft(10); // Reset timer for the next question
     } else {
-      setShowScore(true);
+      setTimeLeft(0); // Stop timer when quiz ends
     }
   };
 
   const restartQuiz = () => {
+    setQuestions([]);
     setCurrentQuestionIndex(0);
     setScore(0);
-    setShowScore(false);
+    setTimeLeft(10);
+    setLoading(true);
+    setError("");
+    setTimeout(() => {
+      location.reload();
+    }, 200);
   };
 
+  useEffect(() => {
+    if (timeLeft > 0) {
+      const timer = setTimeout(() => setTimeLeft((prev) => prev - 1), 1000);
+      return () => clearTimeout(timer);
+    } else if (timeLeft === 0 && currentQuestionIndex < questions.length) {
+      setCurrentQuestionIndex((prev) => prev + 1);
+      setTimeLeft(10); // Move to the next question automatically
+    }
+  }, [timeLeft, currentQuestionIndex, questions.length]);
+
   if (loading) {
-    return <p className="text-center text-gray-700">Loading questions...</p>;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-800 text-green-300">
+        Loading...
+      </div>
+    );
   }
 
-  if (!questions.length) {
-    return <p className="text-center text-red-500">No questions available for this topic.</p>;
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-blue-800 text-red-500">
+        {error}
+      </div>
+    );
   }
+
+  if (currentQuestionIndex >= questions.length) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-blue-800 text-green-300">
+        <h1 className="text-4xl font-bold mb-4">
+          You scored {score} out of {questions.length}
+        </h1>
+        <button
+          onClick={restartQuiz}
+          className="bg-green-500 text-blue-900 px-4 py-2 rounded-lg mt-4"
+        >
+          Restart Quiz
+        </button>
+      </div>
+    );
+  }
+
+  const currentQuestion = questions[currentQuestionIndex];
 
   return (
-    <main className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-6">
-      {showScore ? (
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4 text-green-600">
-            You scored {score} out of {questions.length}
-          </h1>
-          <button
-            onClick={restartQuiz}
-            className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600"
-          >
-            Restart Quiz
-          </button>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-blue-800 text-green-300">
+      <h1 className="text-4xl font-bold mb-6">Quiz on {topic}</h1>
+      <div className="bg-gray-800 text-white p-6 rounded-lg shadow-lg max-w-xl">
+        <h2 className="mb-4">
+          Question {currentQuestionIndex + 1} of {questions.length}:{" "}
+          {currentQuestion.question}
+        </h2>
+        <div className="mb-4">
+          <span className="text-yellow-300">Time Left: {timeLeft}s</span>
         </div>
-      ) : (
-        <div className="w-full max-w-2xl text-center">
-          <h2 className="text-2xl font-bold mb-4 text-purple-700">
-            {topic.toUpperCase()} Quiz: Question {currentQuestionIndex + 1} of {questions.length}
-          </h2>
-          <p
-            className="mb-6 text-lg text-gray-800 font-semibold"
-            dangerouslySetInnerHTML={{ __html: questions[currentQuestionIndex]?.question }}
-          ></p>
-          <div className="grid gap-4">
-            {questions[currentQuestionIndex]?.options.map((option, index) => (
-              <button
-                key={index}
-                onClick={() => handleAnswer(option)}
-                className="bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-900"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 gap-4">
+          {currentQuestion.options.map((option, index) => (
+            <button
+              key={index}
+              onClick={() => handleAnswer(option)}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+            >
+              {option}
+            </button>
+          ))}
         </div>
-      )}
-    </main>
+      </div>
+    </div>
   );
 }
